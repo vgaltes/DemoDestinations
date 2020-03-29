@@ -1,0 +1,19 @@
+{
+  "name": "destinations",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "serverless deploy --aws-profile serverless-local"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "serverless": "^1.67.0",
+    "serverless-iam-roles-per-function": "^2.0.2",
+    "serverless-pseudo-parameters": "^2.5.0"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.648.0"
+  }
+}

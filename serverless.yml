@@ -1,0 +1,73 @@
+service: demo-destinations
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: ${opt:region, self:custom.defaultRegion}
+  stage: ${opt:stage, self:custom.defaultStage}
+
+plugins:
+  - serverless-iam-roles-per-function
+  - serverless-pseudo-parameters
+
+custom:
+  defaultRegion: eu-west-1
+  defaultStage: dev${env:SLSUSER, ""}
+  DLQSnsTopicName: ${self:service}-dlqTopic
+  snsTopicName: ${self:service}-topic
+  snsTopic: arn:aws:sns:#{AWS::Region}:#{AWS::AccountId}:${self:custom.snsTopicName}
+
+functions:
+  entryPoint:
+    handler: src/functions/entryPoint.handler
+    events:
+      - http:
+          path: api/start
+          method: post
+    iamRoleStatements:
+      - Effect: Allow
+        Action: sns:Publish
+        Resource: !Ref SnsTopic
+    environment:
+      snsTopic: ${self:custom.snsTopic}
+  functionWithError:
+    handler: src/functions/functionWithError.handler
+    events:
+      - sns: 
+          arn: !Ref SnsTopic
+          topicName: ${self:custom.snsTopicName}
+    destinations:
+      onFailure: errorDestination
+      onSuccess: successDestination
+    onError: !Ref DLQSnsTopic
+    iamRoleStatements:
+      - Effect: Allow
+        Action: sns:Publish
+        Resource: !Ref DLQSnsTopic
+      - Effect: Allow
+        Action: lambda:InvokeFunction
+        Resource: arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-errorDestination
+      - Effect: Allow
+        Action: lambda:InvokeFunction
+        Resource: arn:aws:lambda:#{AWS::Region}:#{AWS::AccountId}:function:${self:service}-${self:provider.stage}-successDestination
+  functionWithErrorDLQ:
+    handler: src/functions/errorDLQ.handler
+    events:
+      - sns: 
+          arn: !Ref DLQSnsTopic
+          topicName: ${self:custom.DLQSnsTopicName}
+  errorDestination:
+    handler: src/functions/errorDestination.handler
+  successDestination:
+    handler: src/functions/errorDestination.handler
+
+resources:
+  Resources:
+    DLQSnsTopic:
+      Type: AWS::SNS::Topic
+      Properties: 
+        TopicName: ${self:custom.DLQSnsTopicName}
+    SnsTopic:
+      Type: AWS::SNS::Topic
+      Properties: 
+        TopicName: ${self:custom.snsTopicName}
